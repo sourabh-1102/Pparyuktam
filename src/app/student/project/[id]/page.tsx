@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Upload, Globe, Folder, Download, ExternalLink,
-  Briefcase, Award, CheckCircle, Clock, FileText, AlertCircle
+  Briefcase, Award, CheckCircle, Clock, FileText, AlertCircle, MoreVertical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,12 @@ import {
   Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useToast } from "@/hooks/use-toast";
+import ReportModal from "@/components/ReportModal";
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -29,12 +33,13 @@ export default function ProjectDetailsPage() {
   const [application, setApplication] = useState<any>(null);
   const [submission, setSubmission] = useState<any>(null);
 
-  // Submission modal state
+// Submission modal state
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const [submitType, setSubmitType] = useState<"zip_file" | "github_transfer">("github_transfer");
   const [submitUrl, setSubmitUrl] = useState("");
-  const [submitFile, setSubmitFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Report modal state
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -74,12 +79,8 @@ export default function ProjectDetailsPage() {
   const status = application?.status?.toLowerCase() || "unknown";
 
   const handleSubmit = async () => {
-    if (submitType === "github_transfer" && !submitUrl) {
+    if (!submitUrl) {
       toast({ title: "Error", description: "Please provide a GitHub URL.", variant: "destructive" });
-      return;
-    }
-    if (submitType === "zip_file" && !submitFile) {
-      toast({ title: "Error", description: "Please select a ZIP file.", variant: "destructive" });
       return;
     }
 
@@ -88,13 +89,8 @@ export default function ProjectDetailsPage() {
       const formData = new FormData();
       formData.append("project_id", projectId!);
       formData.append("team_id", application?.teamId || "");
-      formData.append("submission_type", submitType);
-
-      if (submitType === "zip_file" && submitFile) {
-        formData.append("file", submitFile);
-      } else {
-        formData.append("github_repo_url", submitUrl);
-      }
+      formData.append("submission_type", "github_transfer");
+      formData.append("github_repo_url", submitUrl);
 
       const res = await fetch("/api/submissions/create", {
         method: "POST",
@@ -109,8 +105,8 @@ export default function ProjectDetailsPage() {
 
       // Refresh submission data
       setSubmission({
-        submission_type: submitType,
-        github_repo_url: submitType === "github_transfer" ? submitUrl : null,
+        submission_type: "github_transfer",
+        github_repo_url: submitUrl,
         download_url: null,
       });
     } catch (err: any) {
@@ -147,9 +143,13 @@ export default function ProjectDetailsPage() {
                 </p>
               </div>
             </div>
-            <Badge 
-              variant={status === "accepted" ? "default" : "secondary"}
-              className={
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" className="text-red-500 border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-600 font-medium" onClick={() => setIsReportModalOpen(true)}>
+                  <AlertCircle className="w-4 h-4 mr-1" /> Report Project
+              </Button>
+              <Badge 
+                variant={status === "accepted" ? "default" : "secondary"}
+                className={
                 status === "accepted" ? "bg-green-600 text-white" :
                 status === "shortlisted" ? "bg-blue-600 text-white" : ""
               }
@@ -160,6 +160,7 @@ export default function ProjectDetailsPage() {
                application?.status || "Applied"}
             </Badge>
           </div>
+        </div>
         </header>
 
         <main className="container mx-auto px-4 py-8 max-w-4xl">
@@ -203,8 +204,6 @@ export default function ProjectDetailsPage() {
                 className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
                 onClick={() => {
                   setSubmitUrl("");
-                  setSubmitFile(null);
-                  setSubmitType("github_transfer");
                   setIsSubmitModalOpen(true);
                 }}
               >
@@ -310,65 +309,40 @@ export default function ProjectDetailsPage() {
             <DialogHeader>
               <DialogTitle>Submit Project</DialogTitle>
               <DialogDescription>
-                Upload your project files or provide a GitHub repository link.
+                Provide a GitHub repository link for your final submission deliverables.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              {/* Toggle */}
-              <div className="flex gap-2">
-                <div
-                  onClick={() => setSubmitType("github_transfer")}
-                  className={`flex-1 p-3 border rounded-lg cursor-pointer text-center text-sm transition-colors ${submitType === "github_transfer" ? "bg-primary/10 border-primary font-semibold" : "hover:bg-muted"}`}
-                >
-                  <Globe className="h-4 w-4 mx-auto mb-1" />
-                  GitHub URL
-                </div>
-                <div
-                  onClick={() => setSubmitType("zip_file")}
-                  className={`flex-1 p-3 border rounded-lg cursor-pointer text-center text-sm transition-colors ${submitType === "zip_file" ? "bg-primary/10 border-primary font-semibold" : "hover:bg-muted"}`}
-                >
-                  <Folder className="h-4 w-4 mx-auto mb-1" />
-                  ZIP File
-                </div>
+              <div className="space-y-2">
+                <Label>GitHub Repository URL</Label>
+                <Input
+                  placeholder="https://github.com/your-org/project"
+                  value={submitUrl}
+                  onChange={(e) => setSubmitUrl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Must start with https://github.com/</p>
               </div>
-
-              {submitType === "github_transfer" ? (
-                <div className="space-y-2">
-                  <Label>GitHub Repository URL</Label>
-                  <Input
-                    placeholder="https://github.com/your-org/project"
-                    value={submitUrl}
-                    onChange={(e) => setSubmitUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Must start with https://github.com/</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label>Upload ZIP File (Max 10MB)</Label>
-                  <Input
-                    type="file"
-                    accept=".zip"
-                    onChange={(e) => setSubmitFile(e.target.files?.[0] || null)}
-                  />
-                  {submitFile && (
-                    <p className="text-xs text-muted-foreground">
-                      Selected: {submitFile.name} ({(submitFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsSubmitModalOpen(false)}>Cancel</Button>
               <Button
                 onClick={handleSubmit}
-                disabled={submitting || (submitType === "github_transfer" ? !submitUrl : !submitFile)}
+                disabled={submitting || !submitUrl}
               >
                 {submitting ? "Submitting..." : "Submit Delivery"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Report Modal */}
+        <ReportModal 
+          isOpen={isReportModalOpen} 
+          onClose={() => setIsReportModalOpen(false)} 
+          entityType="project"
+          entityId={projectId}
+          entityName={project?.title}
+        />
       </div>
     </ProtectedRoute>
   );

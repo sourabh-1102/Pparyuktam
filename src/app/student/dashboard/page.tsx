@@ -8,7 +8,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 import {
   LayoutDashboard, Briefcase, Users, Award, Settings, LogOut,
-  FileText, Plus, Trash2, Percent, ChevronDown, Send, Wallet, Folder, Download, CreditCard, ArrowLeft, Calendar, Landmark, Smartphone, ShieldCheck, Lock
+  FileText, Plus, Trash2, Percent, ChevronDown, Send, Wallet, Folder, Download, CreditCard, ArrowLeft, Calendar, Landmark, Smartphone, ShieldCheck, Lock, AlertCircle, MoreVertical
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,12 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -31,6 +37,7 @@ import { Copy, Check, Globe } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import ReportModal from "@/components/ReportModal";
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: "Dashboard", id: "dashboard" },
@@ -145,6 +152,7 @@ interface CurrentUser {
 const MemberChatDialog = ({ isOpen, onClose, member, currentUser }: { isOpen: boolean; onClose: () => void; member: Member | null; currentUser: CurrentUser }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [reportState, setReportState] = useState<{ isOpen: boolean, type: "user" | "project", id: string, name: string }>({ isOpen: false, type: "user", id: "", name: "" });
 
   useEffect(() => {
     if (isOpen && member) {
@@ -205,10 +213,33 @@ const MemberChatDialog = ({ isOpen, onClose, member, currentUser }: { isOpen: bo
              </div>
              <div>
                 <DialogTitle>{member.name}</DialogTitle>
-                <DialogDescription>{member.role}</DialogDescription>
+                <div className="flex items-center gap-3">
+                   <DialogDescription>{member.role}</DialogDescription>
+                   <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                         <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground ml-2">
+                            <MoreVertical className="h-4 w-4" />
+                         </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                         <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer" onClick={() => setReportState({ isOpen: true, type: "user", id: member.id, name: member.name })}>
+                            <AlertCircle className="w-4 h-4 mr-2" /> Report User
+                         </DropdownMenuItem>
+                      </DropdownMenuContent>
+                   </DropdownMenu>
+                </div>
              </div>
           </div>
         </DialogHeader>
+        
+        {/* Report Modal */}
+        <ReportModal
+            isOpen={reportState.isOpen}
+            onClose={() => setReportState({ ...reportState, isOpen: false })}
+            entityType={reportState.type}
+            entityId={reportState.id}
+            entityName={reportState.name}
+        />
         <div className="h-[400px] flex flex-col border rounded-md mt-2">
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((msg) => (
@@ -253,6 +284,7 @@ const StudentDashboard = () => {
   const [liveProjects, setLiveProjects] = useState<any[]>([]);
   const [enrolledProjects, setEnrolledProjects] = useState<string[]>([]);
   const [enrollmentStatusMap, setEnrollmentStatusMap] = useState<Record<string, string>>({});
+  const [dashboardReportState, setDashboardReportState] = useState<{ isOpen: boolean, type: "user" | "project", id: string, name: string }>({ isOpen: false, type: "user", id: "", name: "" });
   
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [selectedEnrollProject, setSelectedEnrollProject] = useState<string | null>(null);
@@ -473,13 +505,14 @@ const StudentDashboard = () => {
         const { members } = await res.json();
         if (members && Array.isArray(members)) {
           setCurrentRealTeamMembers(members.map((m: any) => ({
-            id: m.user_id,
-            name: m.profiles?.full_name || m.profiles?.email || 'Unknown',
-            email: m.profiles?.email || '',
-            role: m.role || 'member',
-            initials: (m.profiles?.full_name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
-            isLeader: m.role === 'admin',
-            equity: 0,
+            id: m.id,
+            user_id: m.user_id,
+            name: m.name || m.email?.split("@")[0] || "User",
+            email: m.email || '',
+            role: m.role || 'Member',
+            skill_role: m.skill_role || [],
+            initials: (m.name || m.email || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
+            equity: m.equity || 0,
           })));
         }
       } catch (err) {
@@ -713,6 +746,7 @@ const StudentDashboard = () => {
           method: inviteMethod,
           contactInfo: finalContactInfo,
           teamId: validTeamId,
+          projectId: activeTeamContext?.project || null,
           inviterId: user?.id || inviteContactInfo,
           teamName: activeTeamContext?.name || 'Your Team'
         })
@@ -728,32 +762,45 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleRemoveMember = (memberId: string) => {
-    const updatedTeams = teams.map(team => {
-      if (team.id === currentTeamId) {
-        return {
-          ...team,
-          members: (team.members || []).filter((m: any) => m.id !== memberId)
-        };
+  const handleRemoveMember = async (memberId: string) => {
+    try {
+      const res = await fetch("/api/team-members/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId })
+      });
+      if (res.ok) {
+        setCurrentRealTeamMembers(prev => prev.filter(m => m.id !== memberId));
+        toast({ title: "Success", description: "Member removed successfully!" });
+      } else {
+        const err = await res.json();
+        toast({ title: "Error", description: err.error || "Failed finding member", variant: "destructive" });
       }
-      return team;
-    });
-    setTeams(updatedTeams);
-    localStorage.setItem("paryuktam_teams", JSON.stringify(updatedTeams));
+    } catch (error: any) {
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" });
+    }
   };
 
-  const handleEquityChange = (memberId: string, newValue: number[]) => {
-    const updatedTeams = teams.map(team => {
-      if (team.id === currentTeamId) {
-        return {
-          ...team,
-          members: (team.members || []).map((m: any) => m.id === memberId ? { ...m, equity: newValue[0] } : m)
-        };
+  const handleEquityChange = (memberId: string, newValue: string | number) => {
+    setCurrentRealTeamMembers(prev => prev.map(m => m.id === memberId ? { ...m, equity: Number(newValue) } : m));
+  };
+  
+  const handleSaveEquityDistribution = async () => {
+    try {
+      const res = await fetch("/api/team-members/update-equity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ members: currentRealTeamMembers })
+      });
+      if (res.ok) {
+        toast({ title: "Success", description: "Equity distribution saved!" });
+      } else {
+        const err = await res.json();
+        toast({ title: "Error", description: err.error || "Failed to update equity", variant: "destructive" });
       }
-      return team;
-    });
-    setTeams(updatedTeams);
-    localStorage.setItem("paryuktam_teams", JSON.stringify(updatedTeams));
+    } catch (err: any) {
+      toast({ title: "Error", description: "Unexpected error", variant: "destructive" });
+    }
   };
 
   const handleSaveProfile = () => {
@@ -1057,7 +1104,17 @@ const StudentDashboard = () => {
                                 <h3 className="font-semibold">{p.title}</h3>
                                 <p className="text-sm text-muted-foreground">{p.company}</p>
                               </div>
-                              <Badge className="bg-secondary text-secondary-foreground">{p.status}</Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-secondary text-secondary-foreground">{p.status}</Badge>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-red-500 border-red-500 hover:bg-red-50"
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDashboardReportState({ isOpen: true, type: "project", id: p.id, name: p.title }); }}
+                                >
+                                  <AlertCircle className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                             <div className="space-y-2">
                               <div className="flex justify-between text-xs text-muted-foreground">
@@ -1238,9 +1295,9 @@ const StudentDashboard = () => {
                        {realTeams.length === 0 ? "You haven't joined or created a team yet." : "No members in this team yet. Invite someone!"}
                      </div>
                    )}
-                   {currentRealTeamMembers.map((member: any) => (
-                     <div key={member.id} className="bg-card rounded-xl border shadow-card p-6 flex flex-col items-center text-center relative group">
-                      {currentUser.role === 'leader' && !member.isLeader && (
+                    {currentRealTeamMembers.map((member: any) => (
+                      <div key={member.id} className="bg-card rounded-xl border shadow-card p-6 flex flex-col items-center text-center relative group">
+                      {realTeams.find((t: any) => t.id === currentRealTeamId)?.isLeader && user?.id !== member.user_id && (
                         <button 
                           onClick={() => handleRemoveMember(member.id)}
                           className="absolute top-4 right-4 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1252,8 +1309,18 @@ const StudentDashboard = () => {
                       <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-xl font-bold text-primary">
                         {member.initials}
                       </div>
-                      <h3 className="font-semibold text-lg">{member.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-4">{member.role}</p>
+                      <h3 className="font-semibold text-lg">{member.name || member.email?.split("@")[0] || "User"}</h3>
+                      <p className="text-sm text-muted-foreground mb-1">{member.user_id === user?.id ? "Leader" : (member.role || "Member")}</p>
+                      
+                      <div className="flex flex-wrap gap-1 justify-center mb-2">
+                        {member.skill_role?.map((skill: string, idx: number) => (
+                          <Badge key={idx} variant="secondary" className="text-[10px]">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                      
+                      <p className="text-sm font-medium mb-4 text-primary">Equity: {member.equity || 0}%</p>
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -1378,32 +1445,45 @@ const StudentDashboard = () => {
                     <div>
                       <h3 className="font-semibold text-lg flex items-center gap-2">
                         <Percent className="h-5 w-5 text-primary" />
-                        Payment Equity Distribution
+                        Energy & Equity Distribution
                       </h3>
                       <p className="text-sm text-muted-foreground">Adjust how project payments are distributed among the team.</p>
                     </div>
-                    <Badge variant={currentTeam.members.reduce((acc, m) => acc + m.equity, 0) === 100 ? "default" : "destructive"}>
-                      Total: {currentTeam.members.reduce((acc, m) => acc + m.equity, 0)}%
+                    <Badge variant={currentRealTeamMembers.reduce((acc, m) => acc + (m.equity || 0), 0) <= 100 ? "default" : "destructive"}>
+                      Total: {currentRealTeamMembers.reduce((acc, m) => acc + (m.equity || 0), 0)}%
                     </Badge>
                   </div>
                   
                   <div className="space-y-6">
-                    {(currentTeam.members || []).map((member: any) => (
+                    {(currentRealTeamMembers || []).map((member: any) => (
                       <div key={member.id} className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span className="font-medium">{member.name} ({member.role})</span>
-                          <span className="font-bold">{member.equity}%</span>
+                          <span className="font-medium">{member.name || member.email?.split("@")[0] || "User"} ({member.user_id === user?.id ? "Leader" : member.role})</span>
+                          <span className="font-bold">{member.equity || 0}%</span>
                         </div>
-                        <Slider 
-                          defaultValue={[member.equity]} 
-                          max={100} 
-                          step={1} 
-                          onValueChange={(val) => handleEquityChange(member.id, val)}
-                          disabled={currentUser.role !== 'leader'}
-                          className={currentUser.role !== 'leader' ? "opacity-50 cursor-not-allowed" : ""}
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={member.equity}
+                          onChange={(e) => handleEquityChange(member.id, e.target.value)}
                         />
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t flex items-center justify-between">
+                    <div>
+                      {currentRealTeamMembers.reduce((acc, m) => acc + (m.equity || 0), 0) > 100 && (
+                        <p className="text-sm text-destructive font-medium">Warning: Total exceeds 100%</p>
+                      )}
+                    </div>
+                    <Button 
+                      onClick={handleSaveEquityDistribution} 
+                      disabled={currentRealTeamMembers.reduce((acc, m) => acc + (m.equity || 0), 0) > 100}
+                    >
+                      Save Equity Distribution
+                    </Button>
                   </div>
                 </div>
               </>

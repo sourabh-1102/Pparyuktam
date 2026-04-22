@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qbvdtcejdjrdhuqdlawu.supabase.co",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  "https://qbvdtcejdjrdhuqdlawu.supabase.co",
+  "sb_secret_svBLSUTQNM3qJGDcLjxyPA_6hgtFGK5"
 );
 
 async function test() {

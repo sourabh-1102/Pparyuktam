@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { getToken } from "next-auth/jwt";
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function GET(req: NextRequest) {
+  try {
+    const token = await getToken({ req });
+    if (!token?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { data: profile } = await supabaseAdmin.from("profiles").select("is_admin").eq("email", token.email).single();
+    const ADMIN_EMAILS = ["govindsingh100bn@gmail.com", "jatsourabhsinghgovindsingh@gmail.com"];
+    if (!profile?.is_admin && !ADMIN_EMAILS.includes((token.email || "").toLowerCase())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const { data: certificates, error } = await supabaseAdmin
+        .from("certificates")
+        .select(`
+            *,
+            profiles( full_name, email ),
+            projects( title )
+        `)
+        .order("issue_date", { ascending: false });
+
+    if (error) throw error;
+
+    return NextResponse.json({ certificates: certificates || [] });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const token = await getToken({ req });
+    if (!token?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { data: profile } = await supabaseAdmin.from("profiles").select("is_admin").eq("email", token.email).single();
+    const ADMIN_EMAILS = ["govindsingh100bn@gmail.com", "jatsourabhsinghgovindsingh@gmail.com"];
+    if (!profile?.is_admin && !ADMIN_EMAILS.includes((token.email || "").toLowerCase())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const { targetCertificateId, action } = await req.json();
+
+    if (!targetCertificateId || action !== "delete") {
+         return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin.from("certificates").delete().eq("id", targetCertificateId);
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

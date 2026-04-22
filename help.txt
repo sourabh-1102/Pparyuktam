@@ -1,0 +1,52 @@
+
+workflow for this project: 
+        1. Project approval 
+        2. add  functionality in this 
+        3. make ui great
+        4. add chat bot in this (Take help from Sandeep for this... ) or else Integrate chatgpt or Gemini api
+        5. Deploy
+
+transparent with blue colors ki rakhunga..
+har dashboard par khud ki  functionality hogi 
+
+
+
+baaki ka kaam : 
+backend
+ui thoda bhut 
+payment system add on 
+
+auth: google login lagana h 
+
+supabase use karna h isme...
+or Mongodb
+
+
+demo login credentials 
+*Email**: `demo@paryuktam.com`
+ **Password**: `demo123`
+
+
+
+// AuthContext.tsx  
+        do changes and add goggle auth ... remove dummy login 
+        remove all the uneccessary dummy data 
+
+// Split payment system reaning 
+// Payment system remaining'
+// add all the datas to the database and make them worakble woth datbase 
+
+how team leader will decide how to remove or woh apni man mani chalayega to uska kya 
+
+
+
+
+// auth to put :- 1> deploy it 
+                   2> then url
+
+
+// authentication running on running on local host 
+
+
+
+"The 'Complete Profile' screen is throwing a 500 error. This is likely because the role being sent is 'Student' (capitalized) but the database ENUM expects 'student' (lowercase). Please ensure the payload sent to Supabase uses lowercase strings for the role field."

@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/join-team/layout,_N_T_/join-team/page,_N_T_/join-team"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/join-team/__PAGE__",
+    "/join-team",
+    "/_index",
+    "/_head"
+  ]
+}

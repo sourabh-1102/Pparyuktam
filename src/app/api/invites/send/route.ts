@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
+import { randomUUID } from "crypto";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseAdmin = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
-    const { method, contactInfo, teamId, inviterId, teamName } = await request.json();
+    const { method, contactInfo, teamId, projectId, inviterId, teamName } = await request.json();
 
     if (!method || !contactInfo) {
       return NextResponse.json({ error: 'contactInfo and method are required' }, { status: 400 });
@@ -14,16 +20,41 @@ export async function POST(request: Request) {
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json({ error: 'Email service not configured (RESEND_API_KEY missing)' }, { status: 500 });
     }
+    // Generate a UUID token and insert into DB
+    const token = randomUUID();
+    
+    if (supabaseAdmin) {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Generate a stateless token encoding the invite details
-    const tokenPayload = {
-      teamId: teamId || 'unknown',
-      email: contactInfo,
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
-    };
-    const generatedToken = Buffer.from(JSON.stringify(tokenPayload)).toString('base64url');
+      const invitePayload = {
+        team_id: teamId || 'unknown',
+        project_id: projectId || null,
+        email: contactInfo,
+        token,
+        equity: 0,
+        role: "Member",
+        status: "pending",
+        used: false,
+        expires_at: expiresAt.toISOString(),
+      };
 
-    const inviteUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:8080'}/join?token=${generatedToken}`;
+      console.log("Generated token from send route:", token);
+
+      const { error: dbError } = await supabaseAdmin
+        .from("team_invitations")
+        .insert(invitePayload);
+
+      if (dbError) {
+        console.error("Supabase Admin Insert Error in send route:", JSON.stringify(dbError, null, 2));
+        return NextResponse.json({ error: 'Failed to create invitation record' }, { status: 500 });
+      }
+    } else {
+      return NextResponse.json({ error: 'Supabase admin client not initialized' }, { status: 500 });
+    }
+
+    const baseUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:8080');
+    const inviteUrl = `${baseUrl}/join?token=${token}`;
     const resolvedTeamName = teamName || 'a team';
 
     if (method === 'Email') {

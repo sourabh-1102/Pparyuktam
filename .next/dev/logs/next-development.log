@@ -1,0 +1,21 @@
+[00:00:02.140] Server  WARN    ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[00:00:02.516] Server  LOG     ✓ Ready in 1849ms
+[00:00:05.896] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:17.273] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:49.432] Server  ERROR   Fetch applications error: {}
+[00:00:50.176] Server  ERROR   Fetch applications error: {}
+[00:00:58.281] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:11.095] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:41.510] Server  ERROR   [next-auth][error][OAUTH_CALLBACK_ERROR] "\nhttps://next-auth.js.org/errors#oauth_callback_error" "State cookie was missing." {}
+[00:01:41.990] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:52.045] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:53.805] Browser LOG     Current Selected ID: 
+[00:01:53.805] Browser LOG     Current Selected ID: 
+[00:02:01.503] Browser LOG     Current Selected ID: e8afabc8-013d-4c2e-9c64-7d72568ff7b4
+[00:02:12.465] Server  ERROR   Upload error for e8afabc8-013d-4c2e-9c64-7d72568ff7b4/506357de-f110-44fe-b1b9-276cf12a1eea/3643cf0e-cac5-42ed-93f2-5a1d7e02b1da/participation.pdf: StorageApiError: Bucket not found
+[00:02:16.093] Server  ERROR   Upload error for e8afabc8-013d-4c2e-9c64-7d72568ff7b4/506357de-f110-44fe-b1b9-276cf12a1eea/3643cf0e-cac5-42ed-93f2-5a1d7e02b1da/loe.pdf: StorageApiError: Bucket not found
+[00:02:16.722] Server  ERROR   Upload error for e8afabc8-013d-4c2e-9c64-7d72568ff7b4/506357de-f110-44fe-b1b9-276cf12a1eea/3643cf0e-cac5-42ed-93f2-5a1d7e02b1da/confirmation.pdf: StorageApiError: Bucket not found
+[00:02:17.062] Server  ERROR   Upload error for e8afabc8-013d-4c2e-9c64-7d72568ff7b4/506357de-f110-44fe-b1b9-276cf12a1eea/null/loe.pdf: StorageApiError: Bucket not found
+[00:02:17.101] Server  ERROR   Upload error for e8afabc8-013d-4c2e-9c64-7d72568ff7b4/506357de-f110-44fe-b1b9-276cf12a1eea/null/participation.pdf: StorageApiError: Bucket not found
+[00:02:17.617] Server  ERROR   Upload error for e8afabc8-013d-4c2e-9c64-7d72568ff7b4/506357de-f110-44fe-b1b9-276cf12a1eea/null/confirmation.pdf: StorageApiError: Bucket not found
+[00:02:17.990] Server  ERROR   Certificate insert error (soft fail, application remains accepted): {}

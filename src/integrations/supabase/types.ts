@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      team_invitations: {
+        Row: {
+          id: string
+          team_id: string
+          project_id: string | null
+          email: string
+          token: string
+          equity: number | null
+          role: string
+          status: string
+          used: boolean
+          expires_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          team_id: string
+          project_id?: string | null
+          email: string
+          token: string
+          equity?: number | null
+          role?: string
+          status?: string
+          used?: boolean
+          expires_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          team_id?: string
+          project_id?: string | null
+          email?: string
+          token?: string
+          equity?: number | null
+          role?: string
+          status?: string
+          used?: boolean
+          expires_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      certificates: {
+        Row: {
+          id: string
+          project_id: string
+          team_id: string
+          issued_by_company_id: string
+          storage_path: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          team_id: string
+          issued_by_company_id: string
+          storage_path: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          team_id?: string
+          issued_by_company_id?: string
+          storage_path?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           applied_at: string

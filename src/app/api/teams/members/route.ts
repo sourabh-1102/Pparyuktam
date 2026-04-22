@@ -3,8 +3,8 @@ import { getToken } from "next-auth/jwt";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function GET(req: NextRequest) {
@@ -21,10 +21,40 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 });
     }
 
+    // --- FEATURE: Leader Auto-Injection ---
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("email", token.email)
+      .single();
+
+    if (profile) {
+      const { data: existingMember } = await supabaseAdmin
+        .from("team_members")
+        .select("id")
+        .eq("team_id", teamId)
+        .eq("user_id", profile.id)
+        .maybeSingle();
+
+      if (!existingMember) {
+         await supabaseAdmin.from("team_members").insert({
+            team_id: teamId,
+            user_id: profile.id,
+            name: profile.full_name || profile.email?.split("@")[0] || "User",
+            email: profile.email,
+            role: "Leader",
+            skill_role: [],
+            equity: 0,
+            finalized_equity: 0
+         });
+      }
+    }
+    // --------------------------------------
+
     // Fetch team members for the specified team using service role (bypasses RLS)
     const { data, error } = await supabaseAdmin
       .from("team_members")
-      .select("id, user_id, role, profiles(full_name, email, avatar_url)")
+      .select("id, name, email, role, skill_role, equity, user_id")
       .eq("team_id", teamId);
 
     if (error) {

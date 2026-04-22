@@ -4,8 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 
 // Initialize the Supabase Service Role client to bypass RLS
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 async function findAuthUserByEmail(email: string): Promise<any | null> {
@@ -29,7 +29,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized session" }, { status: 401 });
     }
 
-    const { selectedRole, companyName, industry, website } = await req.json();
+    const body = await req.json();
+    const {
+      selectedRole,
+      // Individual fields
+      fullName,
+      phoneNumber,
+      techstack,
+      college,
+      // Company fields
+      companyName,
+      industry,
+      website,
+    } = body;
 
     if (!selectedRole) {
       return NextResponse.json({ error: "Role is required" }, { status: 400 });
@@ -37,6 +49,10 @@ export async function POST(req: NextRequest) {
 
     if (selectedRole === "Company" && !companyName) {
       return NextResponse.json({ error: "Company Name is required" }, { status: 400 });
+    }
+
+    if (selectedRole === "Individual" && !fullName?.trim()) {
+      return NextResponse.json({ error: "Full name is required" }, { status: 400 });
     }
 
     // Exact DB enum value — type is 'user_role' with values 'Individual' | 'Company'
@@ -53,12 +69,10 @@ export async function POST(req: NextRequest) {
 
       if (!authUser) {
         console.log(`User not in auth.users — provisioning...`);
-        // NOTE: The on_auth_user_created trigger has been dropped.
-        // We provision the auth user here and then manually upsert the profile below.
         const { data: { user: newUser }, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: token.email!,
           email_confirm: true,
-          user_metadata: { full_name: token.name || "User" },
+          user_metadata: { full_name: fullName || token.name || "User" },
         });
         if (createError) {
           console.error("Create user error:", createError);
@@ -72,25 +86,36 @@ export async function POST(req: NextRequest) {
       console.log(`Resolved UUID: ${targetUserId}`);
     }
 
-    // Upsert profiles table.
-    // Schema (from DB): id (uuid, PK+FK to auth.users), full_name, avatar_url,
-    //   role (user_role enum), created_at, updated_at, company_name, industry,
-    //   website, user_id, email — all nullable except id, created_at, updated_at.
+    // Parse techstack: comma-separated string → lowercase array
+    const techstackArray: string[] =
+      typeof techstack === "string" && techstack.trim()
+        ? techstack.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean)
+        : [];
+
+    // Build the profile upsert payload
+    const profilePayload: Record<string, any> = {
+      id:      targetUserId,
+      user_id: targetUserId,
+      email:   token.email,
+      role:    roleEnum,
+    };
+
+    if (selectedRole === "Individual") {
+      profilePayload.full_name    = fullName?.trim() || token.name || "";
+      profilePayload.phone_number = phoneNumber?.trim() || null;
+      profilePayload.techstack    = techstackArray.length > 0 ? techstackArray : null;
+      profilePayload.college      = college?.trim() || null;
+    } else {
+      // Company
+      profilePayload.full_name    = token.name || "";
+      profilePayload.company_name = companyName || null;
+      profilePayload.industry     = industry || null;
+      profilePayload.website      = website || null;
+    }
+
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .upsert(
-        {
-          id:           targetUserId,   // Sync IDs explicitly
-          user_id:      targetUserId,   // FK to auth.users.id
-          email:        token.email,
-          full_name:    token.name || "",
-          role:         roleEnum,       // 'Individual' | 'Company' (user_role enum)
-          company_name: selectedRole === "Company" ? companyName : null,
-          industry:     selectedRole === "Company" ? industry    : null,
-          website:      selectedRole === "Company" ? website     : null,
-        },
-        { onConflict: "id" }
-      );
+      .upsert(profilePayload, { onConflict: "id" });
 
     if (profileError) {
       console.error("Profile upsert error:", profileError);

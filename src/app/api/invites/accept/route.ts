@@ -1,141 +1,155 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getToken } from "next-auth/jwt";
 
-// Initialize Supabase Admin strictly for server-side logic
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const { token } = await req.json();
+    const authHeader = req.headers.get("authorization");
+    let userId: string | null = null;
 
-    // 1. TOKEN LOOKUP
+    if (authHeader) {
+      const jwtToken = authHeader.replace("Bearer ", "").trim();
+      const { data } = await supabaseAdmin.auth.getUser(jwtToken);
+      if (data?.user) userId = data.user.id;
+    }
+
+    const { token, equity, name, role, skillRole } = await req.json();
+
     if (!token) {
       return NextResponse.json({ error: "Token is required" }, { status: 400 });
     }
 
-    const { data: invite, error: inviteErr } = await supabaseAdmin
+    // 🔍 Fetch invite
+    const { data: invite } = await supabaseAdmin
       .from("team_invitations")
       .select("*")
       .eq("token", token)
       .maybeSingle();
 
-    if (inviteErr || !invite) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 404 });
+    if (!invite) {
+      return NextResponse.json({ error: "Invalid link" }, { status: 404 });
     }
 
-    // 2. VALIDATION
-    if (invite.status === "accepted" || invite.used === true) {
-      return NextResponse.json({ error: "Invite already used" }, { status: 400 });
+    if (invite.used) {
+      return NextResponse.json({ error: "Already used" }, { status: 400 });
     }
 
-    if (new Date(invite.expires_at).getTime() < Date.now()) {
-      return NextResponse.json({ error: "Invite expired" }, { status: 400 });
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+      return NextResponse.json({ error: "Expired link" }, { status: 400 });
     }
 
-    // 3. USER RESOLUTION
-    const sessionToken = await getToken({ req });
-    if (!sessionToken?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // ✅ NAME FALLBACK
+    const finalName =
+      name?.trim() ||
+      invite.email?.split("@")[0] ||
+      "User";
 
-    const { data: profile, error: profileErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, email")
-      .eq("email", sessionToken.email)
-      .maybeSingle();
+    // ✅ ROLE SAFE
+    const validRoles = ["Member", "Admin", "Leader"];
+    const safeRole = validRoles.includes(role) ? role : "Member";
 
-    if (profileErr || !profile) {
-      return NextResponse.json({ error: "User profile not found. Please complete onboarding first." }, { status: 404 });
-    }
+    // ✅ SKILLS ARRAY SAFE
+    const skillsArray: string[] =
+      typeof skillRole === "string"
+        ? skillRole
+            .split(",")
+            .map((s: string) => s.trim().toLowerCase())
+            .filter(Boolean)
+        : [];
 
-    const userId = profile.id;
-
-    // 4. DUPLICATE CHECK
-    const { data: existingMember } = await supabaseAdmin
+    // ✅ DUPLICATE CHECK
+    const { data: existing } = await supabaseAdmin
       .from("team_members")
       .select("id")
       .eq("team_id", invite.team_id)
-      .eq("user_id", userId)
+      .eq("email", invite.email)
       .maybeSingle();
 
-    if (existingMember) {
-      return NextResponse.json({ error: "Already a team member" }, { status: 400 });
+    if (existing) {
+      return NextResponse.json({
+        success: true,
+        message: "Already joined",
+      });
     }
 
-    // 5. TRANSACTION (Atomic emulation & Data Consistency)
-    // Create valid JSONB contact info structure
-    const contactInfo = {
-      email: profile.email || sessionToken.email,
-      name: profile.full_name || sessionToken.name || "Unknown",
-      joined_at: new Date().toISOString()
+    // ✅ Resolve Supabase auth user by invite email (if not already resolved via Bearer)
+    if (!userId && invite.email) {
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+      const authUser = users.find((u) => u.email === invite.email);
+      if (authUser) userId = authUser.id;
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: "User not found in authentication system. Please sign in first." }, { status: 400 });
+    }
+
+    // ✅ FINAL team_members INSERT
+    const insertPayload: Record<string, any> = {
+      team_id:          invite.team_id,
+      project_id:       invite.project_id,
+      role:             safeRole,
+      skill_role:       skillsArray,
+      equity:           Number(equity) || 0,
+      finalized_equity: 0,
+      name:             finalName,
+      email:            invite.email,
     };
 
-    // First: Update team_invitations
-    const { data: grabbedInvite, error: updateErr } = await supabaseAdmin
-      .from("team_invitations")
-      .update({
-        status: "accepted",
-        used: true,
-        contact_info: contactInfo
-      })
-      .eq("id", invite.id)
-      .eq("used", false) 
-      .select()
-      .maybeSingle();
+    if (userId) insertPayload.user_id = userId;
 
-    if (updateErr || !grabbedInvite) {
-      return NextResponse.json({ error: "Failed to claim invite. It may have just been used." }, { status: 400 });
-    }
+    console.log("🚀 FINAL INSERT:", insertPayload);
 
-    // Second: Insert into team_members
-    const { error: insertErr } = await supabaseAdmin
+    const { error: memberError } = await supabaseAdmin
       .from("team_members")
-      .insert({
-        team_id: invite.team_id,
-        user_id: userId,
-        role: invite.role,    // MUST come from invite record securely
-        equity: invite.equity // MUST come from invite record securely
-      });
+      .insert(insertPayload);
 
-    if (insertErr) {
-      // Rollback the invite claim if insert failed
-      await supabaseAdmin
-        .from("team_invitations")
-        .update({
-          status: "pending",
-          used: false,
-          contact_info: null
-        })
-        .eq("id", invite.id);
-
-      console.error("Team member insert error:", insertErr);
-      return NextResponse.json({ error: "Failed to join team." }, { status: 500 });
+    if (memberError) {
+      console.error("❌ INSERT ERROR:", memberError);
+      return NextResponse.json({ error: memberError.message }, { status: 500 });
     }
 
-    // 7. TEAM LEADER INFO
-    // We join the created_by UUID with profiles to resolve their full name and avatar.
-    const { data: leaderProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("full_name, avatar_url")
-      .eq("id", invite.created_by)
-      .maybeSingle();
+    // ✅ UPDATE profile role to 'Individual' so invited user appears in User Management
+    // Only update if we resolved a Supabase user_id for them
+    if (userId) {
+      const { error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .upsert(
+          {
+            id:        userId,
+            user_id:   userId,
+            email:     invite.email,
+            full_name: finalName,
+            role:      "Individual",  // invited users are always students
+          },
+          { onConflict: "id" }
+        );
 
-    // 8. RESPONSE FORMAT
+      if (profileError) {
+        // Non-fatal — log but don't fail the join
+        console.error("⚠️ Profile upsert after join failed:", profileError.message);
+      }
+    }
+
+    // ✅ UPDATE INVITE (NO DELETE)
+    await supabaseAdmin
+      .from("team_invitations")
+      .update({ used: true, status: "accepted" })
+      .eq("token", token);
+
     return NextResponse.json({
       success: true,
-      team_id: invite.team_id,
-      leader: {
-        name: leaderProfile?.full_name || "Team Leader",
-        avatar: leaderProfile?.avatar_url || null
-      }
+      message: "Joined successfully",
     });
 
-  } catch (error: any) {
-    console.error("Invite Accept Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  } catch (err: any) {
+    console.error("🔥 ERROR:", err);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

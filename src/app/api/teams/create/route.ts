@@ -3,8 +3,8 @@ import { getToken } from "next-auth/jwt";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: NextRequest) {
@@ -28,6 +28,13 @@ export async function POST(req: NextRequest) {
 
     const userId = authUser.id;
 
+    // Resolve profile for full_name
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, email")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     // Insert team (service role bypasses RLS)
     const { data: team, error: teamError } = await supabaseAdmin
       .from("teams")
@@ -37,10 +44,19 @@ export async function POST(req: NextRequest) {
 
     if (teamError) throw new Error(teamError.message);
 
-    // Add creator as team member
+    // Add creator as team leader with proper role
     const { error: memberError } = await supabaseAdmin
       .from("team_members")
-      .insert({ team_id: team.id, user_id: userId });
+      .insert({
+        team_id: team.id,
+        user_id: userId,
+        role: "Leader",
+        name: profile?.full_name || token.email?.split("@")[0] || "Leader",
+        email: profile?.email || token.email || "",
+        skill_role: [],
+        equity: 0,
+        finalized_equity: 0,
+      });
 
     if (memberError) {
       console.error("Member insert error (non-fatal):", memberError.message);

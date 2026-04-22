@@ -14,18 +14,6 @@ const Login = () => {
   const { signIn, user, role } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (user) {
-      if (!role) {
-        router.push("/onboarding");
-      } else if (role === "Company") {
-        router.push("/company/dashboard");
-      } else {
-        router.push("/student/dashboard");
-      }
-    }
-  }, [user, role, router]);
-
   const handleGoogleSignIn = async () => {
     setLoading(true);
     await signIn();

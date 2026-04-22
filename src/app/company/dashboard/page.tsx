@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import {
   LayoutDashboard, Briefcase, Users, Plus, Settings, LogOut,
-  Eye, CheckCircle2, FileText, Download, ExternalLink
+  Eye, CheckCircle2, FileText, Download, ExternalLink, AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import ReportModal from "@/components/ReportModal";
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: "Dashboard", id: "dashboard" },
@@ -26,9 +27,6 @@ const sidebarLinks = [
   { icon: FileText, label: "Submissions", id: "submissions" },
   { icon: Settings, label: "Settings", id: "settings" },
 ];
-
-// Dynamic state will be used instead of hardcoded arrays
-
 const CompanyDashboard = () => {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const { user, signOut } = useAuth();
@@ -41,58 +39,107 @@ const CompanyDashboard = () => {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [selectedSubmProject, setSelectedSubmProject] = useState<string>("");
+  const [reportState, setReportState] = useState<{ isOpen: boolean, type: "team" | "user" | "project", id: string, name: string }>({ isOpen: false, type: "team", id: "", name: "" });
 
+useEffect(() => {
+const fetchData = async () => {
+if (!user?.id) return;
+try {
+const projectsRes = await fetch("/api/projects/my-projects");
+const projectsJson = await projectsRes.json();
+const projectsData: any[] = projectsJson.data || [];
+const projectIds = projectsData.map((p: any) => p.id);
+let appsData: any[] = [];
+if (projectIds.length > 0) {
+const appsRes = await fetch(`/api/projects/applicants?ids=${projectIds.join(",")}`);
+const appsJson = await appsRes.json();
+if (appsJson.data) appsData = appsJson.data;
+}
+const projectCounts: Record<string, number> = {};
+appsData.forEach(a => {
+projectCounts[a.project_id] = (projectCounts[a.project_id] || 0) + 1;
+});
+setPostedProjects(projectsData.map((p: any) => ({
+...p,
+applicants: projectCounts[p.id] || 0,
+status: p.status || "Open",
+selected: null
+})));
+setStats({ posted: projectsData.length, totalApps: appsData.length });
+if (appsData.length > 0) {
+setApplicants(appsData.map((a: any) => ({
+id: a.id,
+projectId: a.project_id,
+teamId: a.team_id,
+teamName: a.teams?.name || "Unknown Team",
+members: (a.teams?.team_members || []).map((m: any) => m.profiles?.full_name || m.profiles?.email || "Student"),
+project: a.projects?.title || "Unknown",
+date: new Date(a.created_at || a.updated_at || Date.now()).toLocaleDateString(),
+status: a.status === 'in_progress' ? 'In Progress' : (a.status === 'accepted' ? 'Accepted' : (a.status === 'shortlisted' ? 'Shortlisted' : (a.status === 'rejected' ? 'Rejected' : 'Pending'))),
+rawStatus: a.status
+})));
+}
+} catch (err) {
+console.error("Failed to fetch company dashboard data:", err);
+}
+};
+fetchData();
+}, [user]);
+
+//URL Sync
+useEffect(() => {
+if (typeof window !== "undefined") {
+const params = new URLSearchParams(window.location.search);
+const tab = params.get("tab");
+const pid = params.get("project_id");
+if (tab) setActiveTab(tab);
+if (pid) setSelectedSubmProject(pid);
+}
+}, []);
+
+// Default Selection (Auto-select first shortlisted/accepted project if none selected)
+useEffect(() => {
+if (activeTab === "submissions" && !selectedSubmProject && postedProjects.length > 0 && applicants.length > 0) {
+const validProjects = postedProjects.filter(p => 
+applicants.some(a => a.projectId === p.id && (a.rawStatus === 'shortlisted' || a.rawStatus === 'accepted'))
+);
+if (validProjects.length > 0) {
+const defaultPid = validProjects[0].id;
+setSelectedSubmProject(defaultPid);
+if (typeof window !== "undefined") {
+const params = new URLSearchParams(window.location.search);
+params.set("tab", "submissions");
+            params.set("project_id", defaultPid);
+            router.replace(`?${params.toString()}`, { scroll: false });
+          }
+       }
+    }
+  }, [postedProjects, applicants, activeTab, selectedSubmProject, router]);
+
+  // 3. Fetch submissions strictly on project_id change
   useEffect(() => {
-    const fetchData = async () => {
-      if (!user?.id) return;
-
-      // Fetch projects via API route (bypasses RLS — auth.uid() is null with NextAuth)
-      try {
-        const projectsRes = await fetch("/api/projects/my-projects");
-        const projectsJson = await projectsRes.json();
-        const projectsData: any[] = projectsJson.data || [];
-
-        const projectIds = projectsData.map((p: any) => p.id);
-        let appsData: any[] = [];
-
-        if (projectIds.length > 0) {
-          const appsRes = await fetch(`/api/projects/applicants?ids=${projectIds.join(",")}`);
-          const appsJson = await appsRes.json();
-          if (appsJson.data) appsData = appsJson.data;
-        }
-
-        const projectCounts: Record<string, number> = {};
-        appsData.forEach(a => {
-          projectCounts[a.project_id] = (projectCounts[a.project_id] || 0) + 1;
-        });
-
-        setPostedProjects(projectsData.map((p: any) => ({
-          ...p,
-          applicants: projectCounts[p.id] || 0,
-          status: p.status || "Open",
-          selected: null
-        })));
-        setStats({ posted: projectsData.length, totalApps: appsData.length });
-
-        if (appsData.length > 0) {
-          setApplicants(appsData.map((a: any) => ({
-            id: a.id,
-            projectId: a.project_id,
-            teamId: a.team_id,
-            teamName: a.teams?.name || "Unknown Team",
-            members: (a.teams?.team_members || []).map((m: any) => m.profiles?.full_name || m.profiles?.email || "Student"),
-            project: a.projects?.title || "Unknown",
-            date: new Date(a.created_at || a.updated_at || Date.now()).toLocaleDateString(),
-            status: a.status === 'in_progress' ? 'In Progress' : (a.status === 'accepted' ? 'Accepted' : (a.status === 'shortlisted' ? 'Shortlisted' : (a.status === 'rejected' ? 'Rejected' : 'Pending'))),
-            rawStatus: a.status
-          })));
-        }
-      } catch (err) {
-        console.error("Failed to fetch company dashboard data:", err);
+    const fetchSubmissions = async () => {
+      console.log("Current Selected ID:", selectedSubmProject);
+      if (!selectedSubmProject) {
+        setSubmissions([]);
+        return;
       }
+      setLoadingSubmissions(true);
+      try {
+        const res = await fetch(`/api/submissions/list?project_id=${selectedSubmProject}`);
+        const json = await res.json();
+        const data = json.data || [];
+        setSubmissions(data);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setSubmissions([]);
+      }
+      setLoadingSubmissions(false);
     };
-    fetchData();
-  }, [user]);
+
+    fetchSubmissions();
+  }, [selectedSubmProject]);
+
   const [title, setTitle] = useState("");
   const [about, setAbout] = useState("");
   const [description, setDescription] = useState("");
@@ -107,7 +154,7 @@ const CompanyDashboard = () => {
   const handleUpdateApplication = async (applicationId: string, projectId: string, teamId: string, actionStatus: 'shortlisted' | 'accepted' | 'rejected') => {
     try {
       if (actionStatus === 'accepted') {
-        // Use the dedicated accept-team endpoint which generates certificates
+// accepted  ka certificate  generate karane k liye 
         const response = await fetch('/api/projects/accept-team', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -122,7 +169,6 @@ const CompanyDashboard = () => {
         const result = await response.json();
         toast({ title: "Team Accepted!", description: `${result.certificates_generated} certificates generated for team members.` });
         
-        // Optimistically update UI — accept selected, reject others
         setApplicants(prev => prev.map(a => 
           a.id === applicationId ? { ...a, status: 'Accepted', rawStatus: 'accepted' } 
             : (a.projectId === projectId ? { ...a, status: 'Rejected', rawStatus: 'rejected' } : a)
@@ -131,7 +177,7 @@ const CompanyDashboard = () => {
             p.id === projectId ? { ...p, status: 'in_progress', selected: teamId } : p
         ));
       } else {
-        // Shortlist or Reject — use existing update-application endpoint
+        //rejection k liye
         const response = await fetch('/api/update-application', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -262,7 +308,14 @@ const CompanyDashboard = () => {
             {sidebarLinks.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  if (typeof window !== "undefined") {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set("tab", item.id);
+                    router.replace(`?${params.toString()}`, { scroll: false });
+                  }
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                   activeTab === item.id
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -506,6 +559,13 @@ const CompanyDashboard = () => {
                                     </>
                                   )}
                                   
+                                  <Button 
+                                    variant="outline" size="sm" className="h-8 text-red-500 border-red-500 hover:bg-red-50 hover:text-red-600 gap-1"
+                                    onClick={() => setReportState({ isOpen: true, type: "team", id: applicant.teamId, name: applicant.teamName })}
+                                  >
+                                    <AlertCircle className="w-3 h-3" /> Report
+                                  </Button>
+                                  
                                   {(applicant.rawStatus === 'pending' || applicant.rawStatus === 'shortlisted') && (
                                      <Button 
                                        size="sm" className="h-8 bg-green-600 hover:bg-green-700 text-white"
@@ -537,21 +597,21 @@ const CompanyDashboard = () => {
                   <select
                     className="h-10 w-full md:w-[300px] rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={selectedSubmProject}
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const pid = e.target.value;
                       setSelectedSubmProject(pid);
-                      if (!pid) { setSubmissions([]); return; }
-                      setLoadingSubmissions(true);
-                      try {
-                        const res = await fetch(`/api/submissions/list?project_id=${pid}`);
-                        const json = await res.json();
-                        setSubmissions(json.data || []);
-                      } catch { setSubmissions([]); }
-                      setLoadingSubmissions(false);
+                      if (typeof window !== "undefined") {
+                        const params = new URLSearchParams(window.location.search);
+                        if (pid) params.set("project_id", pid);
+                        else params.delete("project_id");
+                        router.replace(`?${params.toString()}`, { scroll: false });
+                      }
                     }}
                   >
                     <option value="">Select a project...</option>
-                    {postedProjects.filter(p => p.status === 'in_progress' || p.status === 'completed').map(p => (
+                    {postedProjects.filter(p => 
+                      applicants.some(a => a.projectId === p.id && (a.rawStatus === 'shortlisted' || a.rawStatus === 'accepted'))
+                    ).map(p => (
                       <option key={p.id} value={p.id}>{p.title}</option>
                     ))}
                   </select>
@@ -589,7 +649,7 @@ const CompanyDashboard = () => {
                                 <Badge variant="secondary">{sub.submission_type === 'zip_file' ? 'ZIP File' : 'GitHub'}</Badge>
                               </td>
                               <td className="px-5 py-4 text-sm text-muted-foreground">
-                                {new Date(sub.submitted_at).toLocaleDateString()}
+                                {new Date(sub.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </td>
                               <td className="px-5 py-4">
                                 <div className="flex gap-2">
@@ -753,6 +813,14 @@ const CompanyDashboard = () => {
           </motion.div>
         </main>
       </div>
+
+      <ReportModal
+        isOpen={reportState.isOpen}
+        onClose={() => setReportState({ ...reportState, isOpen: false })}
+        entityType={reportState.type}
+        entityId={reportState.id}
+        entityName={reportState.name}
+      />
     </ProtectedRoute>
   );
 };

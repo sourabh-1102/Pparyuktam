@@ -1,0 +1,47 @@
+{
+  "sorted_middleware": [],
+  "middleware": {
+    "/": {
+      "files": [
+        "server/edge/chunks/node_modules_bad261e5._.js",
+        "server/edge/chunks/[root-of-the-server]__8978dbac._.js",
+        "server/edge/chunks/turbopack-node_modules_next_dist_esm_build_templates_edge-wrapper_14e09588.js"
+      ],
+      "name": "middleware",
+      "page": "/",
+      "matchers": [
+        {
+          "regexp": "/:nextData(_next/data/[^/]{1,})?/student/:path*{(\\\\.json)}?",
+          "originalSource": "/student/:path*"
+        },
+        {
+          "regexp": "/:nextData(_next/data/[^/]{1,})?/company/:path*{(\\\\.json)}?",
+          "originalSource": "/company/:path*"
+        },
+        {
+          "regexp": "/:nextData(_next/data/[^/]{1,})?/create-team/:path*{(\\\\.json)}?",
+          "originalSource": "/create-team/:path*"
+        },
+        {
+          "regexp": "/:nextData(_next/data/[^/]{1,})?/join-team/:path*{(\\\\.json)}?",
+          "originalSource": "/join-team/:path*"
+        },
+        {
+          "regexp": "/:nextData(_next/data/[^/]{1,})?/projects/:path*{(\\\\.json)}?",
+          "originalSource": "/projects/:path*"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "development",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "na5kCDj/nPE1aW76sHemaWg6i6gvlpQFSS7+vYOcG80=",
+        "__NEXT_PREVIEW_MODE_ID": "cfbcd4b7ce6f25c3af5e0615d2b0646c",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "87c6ebc4fd2fd4802bbeff9de083902a5437cc98be1209272b42740a617fa0ff",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "1a7510ff720efd3f5385557f8ed7c81b758d0df8a7e39d646d8648ba09625733"
+      }
+    }
+  },
+  "instrumentation": null,
+  "functions": {}
+}

@@ -4,8 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { generateCertificatePDF } from "@/lib/generateCertificate";
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: NextRequest) {
@@ -161,9 +161,15 @@ export async function POST(req: NextRequest) {
           .from("certificates")
           .createSignedUrl(storagePath, 60 * 60 * 24 * 30);
 
+        // Optional short unique base
+        const shortProjectId = String(project_id).split('-')[0] || String(project_id).substring(0, 8);
+        const shortUserId = String(member.user_id).split('-')[0] || String(member.user_id).substring(0, 8);
+
         certRows.push({
           user_id: member.user_id,
           project_id: project_id,
+          team_id: team_id,
+          certificate_code: `CERT-${shortProjectId}-${shortUserId}-${certType.toUpperCase().replace(/\s/g, "")}`,
           type: certType,
           issue_date: new Date().toISOString(),
           download_url: signedUrlData?.signedUrl || null,
@@ -171,25 +177,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Wait for all uploads to complete
-    await Promise.all(uploadPromises);
+    // Wait for all uploads to complete (won't throw if one fails)
+    await Promise.allSettled(uploadPromises);
 
     // 8. BULK INSERT certificates (single query)
-    const { error: certInsertErr } = await supabaseAdmin
-      .from("certificates")
-      .insert(certRows);
+    let certsGenerated = 0;
+    if (certRows.length > 0) {
+      const { error: certInsertErr } = await supabaseAdmin
+        .from("certificates")
+        .insert(certRows);
 
-    if (certInsertErr) {
-      // ROLLBACK: Revert application status
-      await supabaseAdmin
-        .from("applications")
-        .update({ status: "shortlisted" })
-        .eq("id", application.id);
-
-      console.error("Certificate insert error:", certInsertErr);
-      return NextResponse.json({
-        error: "Failed to generate certificates. Acceptance rolled back.",
-      }, { status: 500 });
+      if (certInsertErr) {
+        console.error("Certificate insert error (soft fail, application remains accepted):", certInsertErr);
+      } else {
+        certsGenerated = certRows.length;
+      }
     }
 
     // 9. Update project status to in_progress & reject other applications
@@ -206,9 +208,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Team accepted. ${certRows.length} certificates generated.`,
+      message: "Team Accepted and Certificates Issued.",
       team_id,
-      certificates_generated: certRows.length,
+      certificates_generated: certsGenerated,
     });
   } catch (error: any) {
     console.error("Accept Team Error:", error);

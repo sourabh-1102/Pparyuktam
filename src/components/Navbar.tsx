@@ -15,50 +15,55 @@ const Navbar = () => {
   const isLanding = pathname === "/";
   const { user, role, signOut } = useAuth();
 
-  const dashboardPath = user 
-    ? (role ? (role === "Company" ? "/company/dashboard" : "/student/dashboard") : "/onboarding") 
+  const dashboardPath = user
+    ? (role === "Admin"
+        ? "/admin"
+        : role === "Company"
+          ? "/company/dashboard"
+          : role === "Individual"
+            ? "/student/dashboard"
+            : "/onboarding")
     : "/login";
 
   const handleSignOut = async () => {
     await signOut();
-    // router.push("/"); // Handled in AuthContext signOut now
+  
   };
 
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className={`fixed top-0 left-0 right-0 z-50  bg-white/10 backdrop-blur-lg rounded-xl border border-white/50 shadow-lg">
-  Translucent Glass Container   `}
+      className="fixed top-0 left-0 right-0 z-50 bg-white/10 backdrop-blur-lg rounded-xl border border-white/50 shadow-lg text-black"
     >
-      <div className="container mx-auto flex items-center justify-between h-16 px-4 ">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-display font-bold text-sm">P</span>
+      <div className="container mx-auto flex items-center justify-between h-16 px-4">
+        <Link href="/" className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-display font-bold text-xl">P</span>
           </div>
-          <span className="font-display font-bold text-lg text-foreground">Paryuktam</span>
+          <span className="font-display font-bold text-2xl text-2xl text-blue-200 ">Paryuktam</span>
         </Link>
 
         {/* Desktop */}
-        <div className="hidden md:flex items-center gap-6">
-          <Link href="/projects" className="text-md text-muted-foreground hover:text-foreground transition-colors">
+        <div className="hidden md:flex  items-center gap-6">
+          <Link href="/projects" className="font-semibold text-2xl text-blue-400 hover:text-black transition-colors">
             Projects
           </Link>
           {user ? (
             <>
-              <Link href={dashboardPath} className="text-md text-muted-foreground hover:text-foreground transition-colors">
+              <Link href={dashboardPath} className="font-semibold text-2xl text-blue-400 hover:text-black transition-colors">
                 Dashboard
               </Link>
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                <LogOut size={16} className="mr-1" /> Sign out
+              <Button variant="ghost" size="lg" className="text-2xl text-blue-400 hover:text-black" onClick={handleSignOut}>
+                <LogOut size={20} className="mr-2" /> Sign out
               </Button>
             </>
           ) : (
             <>
-              <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Link href="/login" className="font-semibold text-lg text-black hover:text-gray-700 transition-colors">
                 Log in
               </Link>
-              <Button asChild size="sm">
+              <Button asChild size="lg" className="font-semibold text-lg">
                 <Link href="/register">Get Started</Link>
               </Button>
             </>
@@ -78,18 +83,18 @@ const Navbar = () => {
           animate={{ opacity: 1, y: 0 }}
           className="md:hidden glass border-t p-4 flex flex-col gap-3"
         >
-          <Link href="/projects" className="text-sm text-muted-foreground" onClick={() => setOpen(false)}>Projects</Link>
+          <Link href="/projects" className="font-semibold text-lg text-black" onClick={() => setOpen(false)}>Projects</Link>
           {user ? (
             <>
-              <Link href={dashboardPath} className="text-sm text-muted-foreground" onClick={() => setOpen(false)}>Dashboard</Link>
-              <Button variant="ghost" size="sm" onClick={() => { handleSignOut(); setOpen(false); }}>
-                <LogOut size={16} className="mr-1" /> Sign out
+              <Link href={dashboardPath} className="font-semibold text-lg text-black" onClick={() => setOpen(false)}>Dashboard</Link>
+              <Button variant="ghost" size="lg" className="w-full justify-start text-black font-semibold text-lg" onClick={() => { handleSignOut(); setOpen(false); }}>
+                <LogOut size={20} className="mr-2" /> Sign out
               </Button>
             </>
           ) : (
             <>
-              <Link href="/login" className="text-sm text-muted-foreground" onClick={() => setOpen(false)}>Log in</Link>
-              <Button asChild size="sm">
+              <Link href="/login" className="font-semibold text-lg text-black" onClick={() => setOpen(false)}>Log in</Link>
+              <Button asChild size="lg" className="w-full font-semibold text-lg">
                 <Link href="/register" onClick={() => setOpen(false)}>Get Started</Link>
               </Button>
             </>
