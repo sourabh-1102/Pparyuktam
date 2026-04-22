@@ -7,6 +7,20 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Debug: Print environment variables related to NextAuth
+console.log("=== NEXTAUTH INIT DEBUG ===");
+console.log("NEXTAUTH_URL (Raw):", process.env.NEXTAUTH_URL);
+console.log("VERCEL_URL (Raw):", process.env.VERCEL_URL);
+console.log("NODE_ENV:", process.env.NODE_ENV);
+
+// Compute the exact base URL NextAuth will use
+const computedUrl = process.env.NEXTAUTH_URL 
+  || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:8080");
+
+console.log("COMPUTED BASE URL:", computedUrl);
+console.log("EXPECTED GOOGLE REDIRECT URI:", `${computedUrl}/api/auth/callback/google`);
+console.log("===========================");
+
 export const authOptions: NextAuthOptions = {
   // Use secure cookies in production automatically based on the URL
   useSecureCookies: process.env.NODE_ENV === "production",
@@ -49,6 +63,18 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  logger: {
+    error(code, metadata) {
+      console.error(`[NextAuth Error] ${code}:`, metadata);
+    },
+    warn(code) {
+      console.warn(`[NextAuth Warning] ${code}`);
+    },
+    debug(code, metadata) {
+      console.log(`[NextAuth Debug] ${code}:`, metadata);
+    },
+  },
+  debug: true, // Enable debug mode for verbose NextAuth logs
 };
 
 const handler = NextAuth(authOptions);
