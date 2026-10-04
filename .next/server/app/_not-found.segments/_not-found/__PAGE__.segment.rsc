@@ -1,6 +1,0 @@
-1:"$Sreact.fragment"
-2:I[22016,["/_next/static/chunks/b5af827a6fc8ca18.js","/_next/static/chunks/1a56fdf2c7a6743a.js","/_next/static/chunks/99ff9ce2e1b8eead.js","/_next/static/chunks/7b8622d957365005.js","/_next/static/chunks/a85370cf1b5b21a6.js","/_next/static/chunks/a9abceb14ae1f061.js","/_next/static/chunks/61fb00496c9f9f59.js","/_next/static/chunks/7c92e96509cd355e.js"],""]
-3:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/650b0d2d0b895b93.js"],"OutletBoundary"]
-4:"$Sreact.suspense"
-0:{"buildId":"L__9qaPF6De6myzvF87oA","rsc":["$","$1","c",{"children":[["$","div",null,{"className":"flex min-h-screen items-center justify-center bg-muted","children":["$","div",null,{"className":"text-center","children":[["$","h1",null,{"className":"mb-4 text-4xl font-bold","children":"404"}],["$","p",null,{"className":"mb-4 text-xl text-muted-foreground","children":"Oops! Page not found"}],["$","p",null,{"className":"mb-4 text-xl text-muted-foreground","children":"Try again!"}],["$","$L2",null,{"href":"/","className":"text-primary underline hover:text-primary/90","children":"Return to Home"}]]}]}],[["$","script","script-0",{"src":"/_next/static/chunks/7c92e96509cd355e.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"loading":null,"isPartial":false}
-5:null

@@ -1,5 +1,0 @@
-[00:00:02.571] Server  WARN    ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
-[00:00:02.960] Server  LOG     ✓ Ready in 2.2s
-[00:00:06.054] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:00:10.299] Browser LOG     Current Selected ID: 
-[00:00:10.299] Browser LOG     Current Selected ID: 
